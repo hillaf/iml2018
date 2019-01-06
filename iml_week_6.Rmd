@@ -1,0 +1,95 @@
+---
+title: "IML week 6"
+output: html_notebook
+---
+
+
+1
+```{r}
+load_mnist <- function() {
+  load_image_file <- function(filename) {
+    ret = list()
+    f = file(filename,'rb')
+    readBin(f,'integer',n=1,size=4,endian='big')
+    ret$n = readBin(f,'integer',n=1,size=4,endian='big')
+    nrow = readBin(f,'integer',n=1,size=4,endian='big')
+    ncol = readBin(f,'integer',n=1,size=4,endian='big')
+    x = readBin(f,'integer',n=ret$n*nrow*ncol,size=1,signed=F)
+    ret$x = matrix(x, ncol=nrow*ncol, byrow=T)
+    close(f)
+    ret
+  }
+  load_label_file <- function(filename) {
+    f = file(filename,'rb')
+    readBin(f,'integer',n=1,size=4,endian='big')
+    n = readBin(f,'integer',n=1,size=4,endian='big')
+    y = readBin(f,'integer',n=n,size=1,signed=F)
+    close(f)
+    y
+  }
+  train <<- load_image_file('mnist/train-images-idx3-ubyte')
+  test <<- load_image_file('mnist/t10k-images-idx3-ubyte')
+  
+  train$y <<- load_label_file('mnist/train-labels-idx1-ubyte')
+  test$y <<- load_label_file('mnist/t10k-labels-idx1-ubyte')  
+}
+
+show_digit <- function(arr784, col=gray(12:1/12), ...) {
+  image(matrix(arr784, nrow=28)[,28:1], col=col, ...)
+}
+
+load_mnist()
+training <- as.matrix(train$x)
+training <- training[1:5000,1:784]
+testing <- as.matrix(test$x)
+testing <- testing[1:1000, 1:784]
+
+distances <- dist(training, testing)
+training_classes <- train$y[1:5000]
+test_classes <- test$y[1:1000]
+training <- cbind(training, training_classes)
+
+
+knn <- function(training, distances, k){
+  print(k)
+  results <- vector()
+  training_classes <- training[,785]
+  
+  for(i in 1:ncol(distances)){
+      # start with k initial neighbors
+      neighbours <- matrix(1:k)
+      neighbours <- cbind(neighbours, distances[1:k,i])
+      neighbours <- cbind(neighbours, training_classes[1:k])
+      
+      # find k actual nearest neighbors
+      for(j in (k+1):(nrow(distances))){
+        if(max(neighbours[,2]) > distances[j,i]){
+          max_index <- which.max(neighbours[,2])
+          neighbours[max_index,] <- c(j,distances[j,i], training_classes[j])
+        }
+      }
+      
+      # find the most common class and store the result
+      results[i] <- names(sort(table(neighbours), decreasing=TRUE))[1]
+  }
+  
+  return(results)
+}
+
+
+errors <- vector()
+for(k in 1:50){
+  res <- knn(training, distances, k)
+  errors <- c(errors, 1-sum(test_classes == res)/1000)
+}
+
+plot(1:50, errors, type="l")
+
+```
+
+
+Load mnist data
+```{r}
+
+```
+

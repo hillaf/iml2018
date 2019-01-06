@@ -1,0 +1,74 @@
+---
+title: "IML week 6"
+output: html_notebook
+---
+
+3 a
+```{r}
+inside_interval <- function(point, interval){
+  return(point > interval[1] & point < interval[2])
+}
+
+error_rate <- vector()
+m <- 1000
+n <- 100
+var <- 100
+true_mean <- 0
+interval_length <- 1.96*(sqrt(var)/sqrt(n))
+  
+for (i in 1:m){
+  data <- rnorm(n, mean=true_mean, sd=sqrt(var))
+  sample_mean <- mean(data)
+
+  confidence_interval <- c(sample_mean-interval_length, sample_mean+interval_length)
+  
+  error_rate <- rbind(error_rate, inside_interval(true_mean, confidence_interval))
+}
+
+print(length(error_rate[error_rate == TRUE]))
+
+```
+```{r}
+
+k <- 1000
+error_rate <- vector()
+
+for (i in 1:m){
+  data <- rnorm(n, mean=true_mean, sd=sqrt(var))
+  b_means <- vector()
+  
+  for(j in 1:k){
+    b_sample <- sample(data, n, replace=TRUE)
+    b_means <- c(b_means, mean(b_sample))
+  }
+  
+  b_conf_interval <- quantile(b_means, c(0.025, 0.975))
+  error_rate <- rbind(error_rate, inside_interval(true_mean, b_conf_interval))
+}
+
+print(length(error_rate[error_rate == TRUE]))
+
+```
+
+3 c
+
+```{r}
+
+error_rate <- vector()
+data <- rnorm(n, mean=true_mean, sd=sqrt(var))
+b_medians <- vector()
+b_maximums <- vector()
+
+for(j in 1:k){
+  b_sample <- sample(data, n, replace=TRUE)
+  b_medians <- c(b_medians, median(b_sample))
+  b_maximums <- c(b_maximums, max(b_sample))
+}
+
+print("Median:")
+print(quantile(b_medians, c(0.025, 0.975)))
+print("Maximum:")
+print(quantile(b_maximums, c(0.025, 0.975)))
+
+```
+

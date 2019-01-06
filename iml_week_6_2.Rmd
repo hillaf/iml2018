@@ -1,0 +1,156 @@
+---
+title: "IML week 6, exercise 2"
+output: html_notebook
+---
+
+```{r}
+load_mnist <- function() {
+  load_image_file <- function(filename) {
+    ret = list()
+    f = file(filename,'rb')
+    readBin(f,'integer',n=1,size=4,endian='big')
+    ret$n = readBin(f,'integer',n=1,size=4,endian='big')
+    nrow = readBin(f,'integer',n=1,size=4,endian='big')
+    ncol = readBin(f,'integer',n=1,size=4,endian='big')
+    x = readBin(f,'integer',n=ret$n*nrow*ncol,size=1,signed=F)
+    ret$x = matrix(x, ncol=nrow*ncol, byrow=T)
+    close(f)
+    ret
+  }
+  load_label_file <- function(filename) {
+    f = file(filename,'rb')
+    readBin(f,'integer',n=1,size=4,endian='big')
+    n = readBin(f,'integer',n=1,size=4,endian='big')
+    y = readBin(f,'integer',n=n,size=1,signed=F)
+    close(f)
+    y
+  }
+  train <<- load_image_file('mnist/train-images-idx3-ubyte')
+  test <<- load_image_file('mnist/t10k-images-idx3-ubyte')
+  
+  train$y <<- load_label_file('mnist/train-labels-idx1-ubyte')
+  test$y <<- load_label_file('mnist/t10k-labels-idx1-ubyte')  
+}
+
+show_digit <- function(arr784, col=gray(12:1/12), ...) {
+  image(matrix(arr784, nrow=28)[,28:1], col=col, ...)
+}
+
+knn <- function(training, training_classes, distances, k){
+  print(k)
+  results <- vector()
+  
+  for(i in 1:ncol(distances)){
+    neighbours <- vector()
+    possible_neighbours <- distances[,i]
+    
+    #find k actual nearest neighbors
+    for(j in 1:k){
+      minimum_index <- which.min(possible_neighbours)
+      neighbours <- rbind(neighbours, training_classes[minimum_index])
+      possible_neighbours[minimum_index] <- NA
+    }
+    
+    # find the most common class and store the result
+    results[i] <- names(sort(table(neighbours), decreasing=TRUE))[1]
+  }
+  
+  return(results)
+}
+
+library(proxy)
+library(matrixStats)
+load_mnist()
+```
+
+ 
+2 a
+```{r}
+n <- 60000
+training <- as.matrix(train$x)[1:n,]
+
+# center
+centered <- t(t(training) - rep(colMeans(training), n))
+
+# normalize
+sds <- colSds(centered)
+sds[sds == 0] <- 1
+normalized <- centered/(matrix(rep(sds, n), nrow=n, byrow=TRUE))
+
+# calculate p*p covariance matrix
+cov <- (t(normalized)%*%normalized)/n
+#cov[cov > 0.99 & cov < 1.01] <- 1
+diagonal <- diag(cov)
+print(diagonal)
+
+```
+
+2 b
+```{r}
+eig <- eigen(cov)
+eig1 <- eig$vectors[,1]
+eig2 <- eig$vectors[,2]
+
+image(matrix(eig1, nrow=28))
+image(matrix(eig2, nrow=28))
+
+```
+
+2 c
+```{r}
+z1 <- rowSums(matrix(rep(eig1, n), nrow=n, byrow=TRUE)*normalized)
+z2 <- rowSums(matrix(rep(eig2, n), nrow=n, byrow=TRUE)*normalized)
+#colors <- rgb(train$y/100, train$y/10, train$y/20)
+plot(z1, z2, col=rgb(train$y/100*sample(c(1:10)), train$y/100*sample(c(1:10)), train$y/100*sample(c(1:10))))
+legend('topright', legend=0:9, col=rgb(train$y/100, train$y/10, train$y/20), pch=4)
+```
+
+2 d
+```{r}
+
+test_n <- 1000
+testing <- as.matrix(test$x)[1:test_n,]
+repeats <- c(5,10,20,40,80)
+errors <- vector()
+k <- 5
+
+for(q in repeats){
+  
+  # get q eigenvectors
+  eigens <- vector()
+  for(i in 1:q){
+    eigens <- rbind(eigens, eig$vectors[,i])
+  }
+  
+  # center and normalize test data
+  test_centered <- t(t(testing) - rep(colMeans(training), test_n))
+  test_normalized <- test_centered/(matrix(rep(sds, test_n), nrow=test_n, byrow=TRUE))
+  
+  # project training and test data
+  projected_training <- matrix(ncol=q, nrow=n)
+  projected_testing <- matrix(ncol=q, nrow=test_n)
+  
+  for (i in 1:q){
+    projected_training[,i] <- rowSums(matrix(rep(eigens[i,], n), nrow=n, byrow=TRUE)*normalized)
+    projected_testing[,i] <- rowSums(matrix(rep(eigens[i,], test_n), nrow=test_n, byrow=TRUE)*test_normalized)
+  }
+  
+  # calculate distances
+  distances <- dist(projected_training, projected_testing)
+  
+  # classify with knn
+  training_classes <- train$y[1:n]
+  res <- knn(training, training_classes, distances, k)
+  
+  # calculate error rate
+  test_classes <- test$y[1:test_n]
+  errors <- c(errors, 1-sum(test_classes == res)/1000)
+  
+}
+
+print(errors)
+plot(repeats, 1-errors, type="l", xlab="q", ylab="accuracy")
+
+
+```
+
